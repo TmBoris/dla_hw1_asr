@@ -2,6 +2,7 @@ import torch
 from tqdm.auto import tqdm
 
 from src.metrics.tracker import MetricTracker
+from src.metrics.utils import calc_cer, calc_wer
 from src.trainer.base_trainer import BaseTrainer
 
 
@@ -97,68 +98,7 @@ class Inferencer(BaseTrainer):
             logs = self._inference_part(part, dataloader)
             part_logs[part] = logs
         return part_logs
-
-    def process_batch(self, batch_idx, batch, metrics, part):
-        """
-        Run batch through the model, compute metrics, and
-        save predictions to disk.
-
-        Save directory is defined by save_path in the inference
-        config and current partition.
-
-        Args:
-            batch_idx (int): the index of the current batch.
-            batch (dict): dict-based batch containing the data from
-                the dataloader.
-            metrics (MetricTracker): MetricTracker object that computes
-                and aggregates the metrics. The metrics depend on the type
-                of the partition (train or inference).
-            part (str): name of the partition. Used to define proper saving
-                directory.
-        Returns:
-            batch (dict): dict-based batch containing the data from
-                the dataloader (possibly transformed via batch transform)
-                and model outputs.
-        """
-        # TODO change inference logic so it suits ASR assignment
-        # and task pipeline
-
-        batch = self.move_batch_to_device(batch)
-        batch = self.transform_batch(batch)  # transform batch on device -- faster
-
-        outputs = self.model(**batch)
-        batch.update(outputs)
-
-        if metrics is not None:
-            for met in self.metrics["inference"]:
-                metrics.update(met.name, met(**batch))
-
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
-
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
-
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
-
-        return batch
-
+    
     def _inference_part(self, part, dataloader):
         """
         Run inference on a given partition and save predictions
@@ -185,11 +125,117 @@ class Inferencer(BaseTrainer):
                 desc=part,
                 total=len(dataloader),
             ):
+                if "test" not in part:
+                    raise Exception(f"Evaluating part without 'test' prefics. part name is {part}")
+
                 batch = self.process_batch(
                     batch_idx=batch_idx,
                     batch=batch,
                     part=part,
                     metrics=self.evaluation_metrics,
                 )
+                self._log_scalars(self.evaluation_metrics)
+                if batch_idx % 100 == 0:
+                    self._log_batch(batch_idx, batch, part)
 
         return self.evaluation_metrics.result()
+
+    def process_batch(self, batch_idx, batch, metrics, part):
+        """
+        Run batch through the model, compute metrics, and
+        save predictions to disk.
+
+        Save directory is defined by save_path in the inference
+        config and current partition.
+
+        Args:
+            batch_idx (int): the index of the current batch.
+            batch (dict): dict-based batch containing the data from
+                the dataloader.
+            metrics (MetricTracker): MetricTracker object that computes
+                and aggregates the metrics. The metrics depend on the type
+                of the partition (train or inference).
+            part (str): name of the partition. Used to define proper saving
+                directory.
+        Returns:
+            batch (dict): dict-based batch containing the data from
+                the dataloader (possibly transformed via batch transform)
+                and model outputs.
+        """
+
+        batch = self.move_batch_to_device(batch)
+        batch = self.transform_batch(batch)  # transform batch on device -- faster
+
+        outputs = self.model(**batch)
+        batch.update(outputs)
+
+        if metrics is not None:
+            for met in self.metrics["inference"]:
+                metrics.update(met.name, met(**batch))
+
+        # Some saving logic. This is an example
+        # Use if you need to save predictions on disk
+
+        return batch
+    
+    def _log_batch(self, batch_idx, batch, mode="train"):
+        """
+        Log data from batch. Calls self.writer.add_* to log data
+        to the experiment tracker.
+
+        Args:
+            batch_idx (int): index of the current batch.
+            batch (dict): dict-based batch after going through
+                the 'process_batch' function.
+            mode (str): train or inference. Defines which logging
+                rules to apply.
+        """
+        # method to log data from you batch
+        # such as audio, text or images, for example
+
+        # logging scheme might be different for different partitions
+        if mode == "train":  # the method is called only every self.log_step steps
+            self.log_spectrogram(**batch)
+        else:
+            # Log Stuff
+            self.log_spectrogram(**batch)
+            self.log_predictions(**batch)
+
+    def log_spectrogram(self, spectrogram, **batch):
+        spectrogram_for_plot = spectrogram[0].detach().cpu()
+        image = plot_spectrogram(spectrogram_for_plot)
+        self.writer.add_image("spectrogram", image)
+
+    def log_predictions(
+        self, text, log_probs, log_probs_length, audio_path, audio, examples_to_log=10, **batch
+    ):
+        # TODO add beam search
+        # Note: by improving text encoder and metrics design
+        # this logging can also be improved significantly
+
+        argmax_inds = log_probs.cpu().argmax(-1).numpy()
+        argmax_inds = [
+            inds[: int(ind_len)]
+            for inds, ind_len in zip(argmax_inds, log_probs_length.numpy())
+        ]
+        argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
+        argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
+        tuples = list(zip(argmax_texts, text, argmax_texts_raw, audio_path, audio))
+
+        rows = {}
+        for pred, target, raw_pred, audio_path, audio in tuples[:examples_to_log]:
+            target = self.text_encoder.normalize_text(target)
+            wer = calc_wer(target, pred) * 100
+            cer = calc_cer(target, pred) * 100
+
+            rows[Path(audio_path).name] = {
+                "target": target,
+                "raw prediction": raw_pred,
+                "predictions": pred,
+                "wer": wer,
+                "cer": cer,
+                "audio": audio
+            }
+        self.writer.add_table(
+            "predictions", pd.DataFrame.from_dict(rows, orient="index")
+        )
