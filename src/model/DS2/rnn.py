@@ -61,7 +61,7 @@ class BNReluRNN(nn.Module):
         x = self.activation(self.batch_norm(x))
         x = x.transpose(1, 2)
 
-        x = nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True, enforce_sorted=False)
+        x = nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True)
         x, hidden_states = self.rnn(x)
         x, _ = nn.utils.rnn.pad_packed_sequence(x, total_length=total_length, batch_first=True)
         if self.bidirectional:

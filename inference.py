@@ -3,10 +3,12 @@ import warnings
 import hydra
 import torch
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
+
 
 from src.datasets.data_utils import get_dataloaders
 from src.trainer import Inferencer
-from src.utils.init_utils import set_random_seed
+from src.utils.init_utils import set_random_seed, setup_saving_and_logging
 from src.utils.io_utils import ROOT_PATH
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -23,6 +25,10 @@ def main(config):
         config (DictConfig): hydra experiment config.
     """
     set_random_seed(config.inferencer.seed)
+
+    # project_config = OmegaConf.to_container(config)
+    # logger = setup_saving_and_logging(config)
+    # writer = instantiate(config.writer, logger, project_config)
 
     if config.inferencer.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"

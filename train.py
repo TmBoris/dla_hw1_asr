@@ -1,4 +1,5 @@
 import warnings
+import sys
 
 import hydra
 import torch
@@ -80,7 +81,7 @@ def main(config):
         batch_transforms=batch_transforms,
         skip_oom=config.trainer.get("skip_oom", True),
     )
-
+    sys.stdout.flush()
     trainer.train()
 
 

@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import sys
 
 import torch
 from numpy import inf
@@ -188,6 +189,8 @@ class BaseTrainer:
 
             if stop_process:  # early_stop
                 break
+
+            sys.stdout.flush()
 
     def _train_epoch(self, epoch):
         """

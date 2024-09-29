@@ -1,5 +1,5 @@
 defaults:
-  - model: deepspeech2
+  - model: baseline
   - writer: wandb
   - metrics: example
   - datasets: example_eval # we do not want to run inference on training data
