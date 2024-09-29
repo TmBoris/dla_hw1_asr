@@ -202,7 +202,7 @@ class BaseDataset(Dataset):
 
         records_to_filter = exceeds_text_length | exceeds_audio_length
 
-        if records_to_filter.any():
+        if records_to_filter is not False and records_to_filter.any():
             _total = records_to_filter.sum()
             index = [el for el, exclude in zip(index, records_to_filter) if not exclude]
             logger.info(
