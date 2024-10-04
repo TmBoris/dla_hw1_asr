@@ -39,6 +39,7 @@ def main(config):
 
     # setup data_loader instances
     # batch_transforms should be put on device
+    # print('loading datasets', flush=True)
     dataloaders, batch_transforms = get_dataloaders(config, text_encoder, device)
 
     # build model architecture, then print to console

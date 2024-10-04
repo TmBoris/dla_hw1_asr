@@ -17,7 +17,7 @@ def collate_fn(dataset_items: list[dict]):
 
     result_batch = {}
 
-    dataset_items = sorted(dataset_items, key=lambda x: x["spectrogram"].shape[2])
+    dataset_items = sorted(dataset_items, key=lambda x: x["spectrogram"].shape[2], reverse=True)
 
     result_batch['audio'] = pad_sequence(
         [sample["audio"].squeeze(0) for sample in dataset_items], batch_first=True

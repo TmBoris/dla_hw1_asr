@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from src.metrics.base_metric import BaseMetric
-from src.metrics.utils import calc_wer
+from src.metrics.utils import calc_wer, ctc_beam_search
 
 # TODO beam search / LM versions
 # Note: they can be written in a pretty way
@@ -25,5 +25,25 @@ class ArgmaxWERMetric(BaseMetric):
         for log_prob_vec, length, target_text in zip(predictions, lengths, text):
             target_text = self.text_encoder.normalize_text(target_text)
             pred_text = self.text_encoder.ctc_decode(log_prob_vec[:length])
+            print('pred_text in ArgmaxWERMetric: ', pred_text)
+            wers.append(calc_wer(target_text, pred_text))
+        return sum(wers) / len(wers)
+
+
+class BeamSearchWERMetric(BaseMetric):
+    def __init__(self, beam_size, text_encoder, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text_encoder = text_encoder
+        self.beam_size = beam_size
+
+    def __call__(
+        self, log_probs: Tensor, log_probs_length: Tensor, text: List[str], **kwargs
+    ):
+        wers = []
+        lengths = log_probs_length.detach().numpy()
+        for text, log_prob, length in zip(text, log_probs, lengths):
+            target_text = self.text_encoder.normalize_text(text)
+            pred_text = ctc_beam_search(log_prob[:length, :], self.beam_size, self.text_encoder.ind2char, self.text_encoder.EMPTY_TOK)
+            print('pred_text in BeamSearchWERMetric: ', pred_text)
             wers.append(calc_wer(target_text, pred_text))
         return sum(wers) / len(wers)

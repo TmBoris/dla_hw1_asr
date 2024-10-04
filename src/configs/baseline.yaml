@@ -2,7 +2,7 @@ defaults:
   - model: baseline  # baseline, deepspeech2
   - writer: wandb
   - metrics: example
-  - datasets: example
+  - datasets: onebatchtest
   - dataloader: example
   - transforms: example_only_instance
   - _self_
@@ -22,8 +22,8 @@ text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
 trainer:
   log_step: 250
-  n_epochs: 20
-  epoch_len: 28539
+  n_epochs: 1
+  epoch_len: 1
   device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"
