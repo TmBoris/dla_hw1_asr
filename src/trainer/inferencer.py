@@ -1,5 +1,6 @@
 import torch
 import os
+import numpy as np
 from tqdm.auto import tqdm
 from scipy.io.wavfile import write
 
@@ -196,8 +197,8 @@ class Inferencer(BaseTrainer):
             if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:
                 break
 
-            log_prob = batch['log_probs'][i].clone()
-            log_prob_length = batch['log_probs_length'][i].detach()
+            log_prob = batch['log_probs'][i].detach().cpu()
+            log_prob_length = batch['log_probs_length'][i].detach().cpu().numpy()
 
             # print("type of batch['audio'][i]", batch['audio'][i])
             
@@ -213,7 +214,7 @@ class Inferencer(BaseTrainer):
 
             input = {
                 'probs': log_prob[:log_prob_length, :],
-                'probs_lengths': torch.tensor([log_prob_length])
+                'probs_lengths': np.array([log_prob_length])
             }
 
             for decode_method in self.saver_decode_methods:

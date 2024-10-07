@@ -16,6 +16,6 @@ inferencer:
   device: auto # device name or "auto"
   save_path: "testing_saving4" # any name here, can be a dataset name
   max_logged_instances: 100
-  saver_decode_methods: ['argmax', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
+  saver_decode_methods: ['argmax', 'bs', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
   seed: 1
   from_pretrained: "saved/LS train-clean-100 baseline with checkpoint/model_best.pth" # path to the pretrained model
