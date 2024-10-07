@@ -5,7 +5,7 @@ from scipy.io.wavfile import write
 
 
 from src.metrics.tracker import MetricTracker
-from src.metrics.utils import calc_cer, calc_wer, ctc_beam_search, argmax_ctc_decode
+from src.metrics.utils import calc_cer, calc_wer
 from src.trainer.base_trainer import BaseTrainer
 
 
@@ -196,8 +196,8 @@ class Inferencer(BaseTrainer):
             if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:
                 break
 
-            log_probs = batch['log_probs'][i].clone()
-            log_probs_length = batch['log_probs_length'][i].clone()
+            log_prob = batch['log_probs'][i].clone()
+            log_prob_length = batch['log_probs_length'][i].detach()
 
             # print("type of batch['audio'][i]", batch['audio'][i])
             
@@ -206,19 +206,23 @@ class Inferencer(BaseTrainer):
             saving_transcr_path.write_text(batch['text'][i], encoding="utf-8")
 
             decode_method_to_func = {
-                'argmax': argmax_ctc_decode,
-                'bs': ctc_beam_search
+                'argmax': self.text_encoder.argmax_ctc_decode,
+                'bs': self.text_encoder.ctc_beam_search,
+                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
             }
 
             input = {
-                'probs': log_probs[:log_probs_length, :],
-                'text_encoder': self.text_encoder,
-                'beam_size': self.beam_size
+                'probs': log_prob[:log_prob_length, :],
+                'probs_lengths': torch.tensor([log_prob_length])
             }
 
             for decode_method in self.saver_decode_methods:
+                assert decode_method in list(decode_method_to_func.keys()), 'unknown decode method'
+
                 saving_path = prediction_pathes[decode_method] / f'Utterance_{cur_len}.txt'
                 decoded_text = decode_method_to_func[decode_method](**input)
+                if not isinstance(decoded_text, str):
+                    decoded_text = decoded_text[0]
                 saving_path.write_text(decoded_text, encoding='utf-8')
 
         return batch

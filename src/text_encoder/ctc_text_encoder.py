@@ -1,5 +1,8 @@
 import re
 from string import ascii_lowercase
+from pyctcdecode import build_ctcdecoder
+import multiprocessing
+from collections import defaultdict
 
 import torch
 
@@ -13,7 +16,7 @@ import torch
 class CTCTextEncoder:
     EMPTY_TOK = ""
 
-    def __init__(self, alphabet=None, **kwargs):
+    def __init__(self, lm_path, vocab_path, beam_size, alphabet=None, **kwargs):
         """
         Args:
             alphabet (list): alphabet for language. If None, it will be
@@ -28,6 +31,15 @@ class CTCTextEncoder:
 
         self.ind2char = dict(enumerate(self.vocab))
         self.char2ind = {v: k for k, v in self.ind2char.items()}
+
+        self.beam_size = beam_size
+
+        if lm_path is not None:
+            assert vocab_path is not None, "vocab_path is None"
+            with open(vocab_path, 'r') as file:
+                unigrams = [x.strip() for x in file.readlines()]
+            # big letters, because have big letters in unigrams
+            self.decoder = build_ctcdecoder([""] + [w.upper() for w in self.alphabet], kenlm_model_path=lm_path, unigrams=unigrams)
 
     def __len__(self):
         return len(self.vocab)
@@ -58,7 +70,7 @@ class CTCTextEncoder:
         """
         return "".join([self.ind2char[int(ind)] for ind in inds]).strip()
 
-    def ctc_decode(self, inds) -> str:
+    def _ctc_decode(self, inds) -> str:
         result_string = ''
         last_is_empty = False
         for ind in inds:
@@ -75,7 +87,53 @@ class CTCTextEncoder:
             last_is_empty = False
 
         return result_string
+    
+    def _expand_and_merge_path(self, dp, next_token_probs):
+        new_dp = defaultdict(float)
+        for ind, next_token_prob in enumerate(next_token_probs):
+            cur_char = self.ind2char[ind]
+            for (prefix, last_char), v in dp.items():
+                if last_char == cur_char:
+                    new_prefix = prefix
+                else:
+                    if cur_char != self.EMPTY_TOK:
+                        new_prefix = prefix + cur_char
+                    else:
+                        new_prefix = prefix
+                new_dp[(new_prefix, cur_char)] += v + next_token_prob
+        return new_dp
 
+    def _truncate_paths(self, dp):
+        return dict(sorted(list(dp.items()), key=lambda x: -x[1])[:self.beam_size])
+
+    def ctc_beam_search(self, probs, **other):
+        dp = {
+            ('', self.EMPTY_TOK): 1.0,
+        }
+        for prob in probs:
+            dp = self._expand_and_merge_path(dp, prob)
+            dp = self._truncate_paths(dp)
+        dp = [(prefix, proba) for (prefix, _), proba in sorted(dp.items(), key=lambda x: -x[1])]
+        return dp[0][0]
+    
+    def argmax_ctc_decode(self, probs, **other):
+        """
+        :param: probs - верояности уже обрезанные по длине. shape = [length, vocab_size]
+        """
+        return self._ctc_decode(torch.argmax(probs.cpu(), dim=-1).numpy())
+
+    def lib_lm_beam_search(self, probs, probs_lengths, **other):
+        """
+        :param: probs - батч предсказаний. shape = [bs, length, vocab_size]
+        """
+        if len(probs.shape) == 2:
+            probs = probs.unsqueeze(0) # because don't have batch on inference
+
+        probs = [probs[i, :probs_lengths[i], :].numpy() for i in range(probs_lengths.shape[0])]
+
+        with multiprocessing.get_context("fork").Pool() as pool:
+            texts = self.decoder.decode_batch(pool, probs, beam_width=self.beam_size)
+        return [w.lower().strip() for w in texts]
 
     @staticmethod
     def normalize_text(text: str):

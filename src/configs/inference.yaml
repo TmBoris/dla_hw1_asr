@@ -8,12 +8,14 @@ defaults:
   - _self_
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
+  lm_path: data/LM/3-gram.pruned.1e-7.bin # 3-gram.pruned.1e-7 from https://www.openslr.org/11/
+  vocab_path: data/LM/librispeech-vocab.txt # librispeech-vocab from https://www.openslr.org/11/
+  beam_size: 3
 inferencer:
   device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
   device: auto # device name or "auto"
-  save_path: "testing_saving3" # any name here, can be a dataset name
+  save_path: "testing_saving4" # any name here, can be a dataset name
   max_logged_instances: 100
-  saver_decode_methods: ['argmax'] # possible names are argmax, bs, torch_bs, torch_bs_lm
-  beam_size: null
+  saver_decode_methods: ['argmax', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
   seed: 1
   from_pretrained: "saved/LS train-clean-100 baseline with checkpoint/model_best.pth" # path to the pretrained model

@@ -12,6 +12,8 @@ comet_ml
 hydra-core
 datasets
 wget
+pyctcdecode
+https://github.com/kpu/kenlm/archive/master.zip
 
 black
 isort

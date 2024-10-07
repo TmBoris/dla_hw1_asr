@@ -1,8 +1,10 @@
 train:
   _target_: src.datasets.LibrispeechDataset
   part: "train-clean-100"
+  limit: 2
   instance_transforms: ${transforms.instance_transforms.train}
 val:
   _target_: src.datasets.LibrispeechDataset
   part: "test-clean"
+  limit: 2
   instance_transforms: ${transforms.instance_transforms.inference}

@@ -1,5 +1,6 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
+from src.text_encoder import CTCTextEncoder
 
 
 def collate_fn(dataset_items: list[dict]):
@@ -39,6 +40,7 @@ def collate_fn(dataset_items: list[dict]):
     result_batch['text_encoded_length'] = torch.tensor([len(text) for text in texts])
 
     result_batch["text"] = [sample["text"] for sample in dataset_items]
+    result_batch["normalized_text"] = [CTCTextEncoder.normalize_text(sample["text"]) for sample in dataset_items]
     result_batch["audio_path"] = [sample["audio_path"] for sample in dataset_items]
 
     return result_batch
