@@ -1,8 +1,11 @@
 import torch
+import os
 from tqdm.auto import tqdm
+from scipy.io.wavfile import write
+
 
 from src.metrics.tracker import MetricTracker
-from src.metrics.utils import calc_cer, calc_wer
+from src.metrics.utils import calc_cer, calc_wer, ctc_beam_search, argmax_ctc_decode
 from src.trainer.base_trainer import BaseTrainer
 
 
@@ -56,6 +59,9 @@ class Inferencer(BaseTrainer):
 
         self.config = config
         self.cfg_trainer = self.config.inferencer
+        self.max_logged_instances = self.cfg_trainer.get('max_logged_instances', 100)
+        self.saver_decode_methods = self.cfg_trainer.get('saver_decode_methods', ['argmax'])
+        self.beam_size = self.cfg_trainer.get('beam_size', 1)
 
         self.device = device
 
@@ -176,66 +182,43 @@ class Inferencer(BaseTrainer):
         # Some saving logic. This is an example
         # Use if you need to save predictions on disk
 
-        return batch
-    
-    def _log_batch(self, batch_idx, batch, mode="train"):
-        """
-        Log data from batch. Calls self.writer.add_* to log data
-        to the experiment tracker.
+        save_audio_path = self.save_path / part / 'audio'
+        os.makedirs(save_audio_path, exist_ok=True)
+        save_transcriptions_path = self.save_path / part / 'transcriptions'
+        os.makedirs(save_transcriptions_path, exist_ok=True)
+        prediction_pathes = {}
+        for decode_method in self.saver_decode_methods:
+            prediction_pathes[decode_method] = self.save_path / part / decode_method
+            os.makedirs(prediction_pathes[decode_method], exist_ok=True)
 
-        Args:
-            batch_idx (int): index of the current batch.
-            batch (dict): dict-based batch after going through
-                the 'process_batch' function.
-            mode (str): train or inference. Defines which logging
-                rules to apply.
-        """
-        # method to log data from you batch
-        # such as audio, text or images, for example
 
-        # logging scheme might be different for different partitions
-        if mode == "train":  # the method is called only every self.log_step steps
-            self.log_spectrogram(**batch)
-        else:
-            # Log Stuff
-            self.log_spectrogram(**batch)
-            self.log_predictions(**batch)
+        for i in range(len(batch['audio'])):
+            if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:
+                break
 
-    def log_spectrogram(self, spectrogram, **batch):
-        spectrogram_for_plot = spectrogram[0].detach().cpu()
-        image = plot_spectrogram(spectrogram_for_plot)
-        self.writer.add_image("spectrogram", image)
+            log_probs = batch['log_probs'][i].clone()
+            log_probs_length = batch['log_probs_length'][i].clone()
 
-    def log_predictions(
-        self, text, log_probs, log_probs_length, audio_path, examples_to_log=10, **batch
-    ):
-        # TODO add beam search
-        # Note: by improving text encoder and metrics design
-        # this logging can also be improved significantly
+            # print("type of batch['audio'][i]", batch['audio'][i])
+            
+            write(save_audio_path / f'Utterance_{cur_len}.wav', 16000, batch['audio'][i].numpy()) # scipy
+            saving_transcr_path = save_transcriptions_path / f'Utterance_{cur_len}.txt'
+            saving_transcr_path.write_text(batch['text'][i], encoding="utf-8")
 
-        argmax_inds = log_probs.cpu().argmax(-1).numpy()
-        argmax_inds = [
-            inds[: int(ind_len)]
-            for inds, ind_len in zip(argmax_inds, log_probs_length.numpy())
-        ]
-        argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
-        argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
-        tuples = list(zip(argmax_texts, text, argmax_texts_raw, audio_path))
-
-        rows = {}
-        for pred, target, raw_pred, audio_path in tuples[:examples_to_log]:
-            target = self.text_encoder.normalize_text(target)
-            wer = calc_wer(target, pred) * 100
-            cer = calc_cer(target, pred) * 100
-
-            rows[Path(audio_path).name] = {
-                "target": target,
-                "raw prediction": raw_pred,
-                "predictions": pred,
-                "wer": wer,
-                "cer": cer,
-                "audio": wandb.Audio(audio_path)
+            decode_method_to_func = {
+                'argmax': argmax_ctc_decode,
+                'bs': ctc_beam_search
             }
-        self.writer.add_table(
-            "predictions", pd.DataFrame.from_dict(rows, orient="index")
-        )
+
+            input = {
+                'probs': log_probs[:log_probs_length, :],
+                'text_encoder': self.text_encoder,
+                'beam_size': self.beam_size
+            }
+
+            for decode_method in self.saver_decode_methods:
+                saving_path = prediction_pathes[decode_method] / f'Utterance_{cur_len}.txt'
+                decoded_text = decode_method_to_func[decode_method](**input)
+                saving_path.write_text(decoded_text, encoding='utf-8')
+
+        return batch

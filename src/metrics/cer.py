@@ -25,7 +25,7 @@ class ArgmaxCERMetric(BaseMetric):
         for log_prob_vec, length, target_text in zip(predictions, lengths, text):
             target_text = self.text_encoder.normalize_text(target_text)
             pred_text = self.text_encoder.ctc_decode(log_prob_vec[:length])
-            print('pred_text in ArgmaxCERMetric: ', pred_text)
+            # print('pred_text in ArgmaxCERMetric: ', pred_text)
             cers.append(calc_cer(target_text, pred_text))
         return sum(cers) / len(cers)
 
@@ -43,7 +43,7 @@ class BeamSearchCERMetric(BaseMetric):
         lengths = log_probs_length.detach().numpy()
         for text, log_prob, length in zip(text, log_probs, lengths):
             target_text = self.text_encoder.normalize_text(text)
-            pred_text = ctc_beam_search(log_prob[:length, :], self.beam_size, self.text_encoder.ind2char, self.text_encoder.EMPTY_TOK)
-            print('pred_text in BeamSearchCERMetric: ', pred_text)
+            pred_text = ctc_beam_search(log_prob[:length, :], self.text_encoder, self.beam_size)
+            # print('pred_text in BeamSearchCERMetric: ', pred_text)
             cers.append(calc_cer(target_text, pred_text))
         return sum(cers) / len(cers)
