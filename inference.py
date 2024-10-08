@@ -65,6 +65,7 @@ def main(config):
         dataloaders=dataloaders,
         text_encoder=text_encoder,
         logger=logger,
+        writer=writer,
         batch_transforms=batch_transforms,
         save_path=save_path,
         metrics=metrics,
