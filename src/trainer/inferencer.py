@@ -26,6 +26,7 @@ class Inferencer(BaseTrainer):
         device,
         dataloaders,
         text_encoder,
+        logger,
         save_path,
         metrics=None,
         batch_transforms=None,
@@ -75,8 +76,10 @@ class Inferencer(BaseTrainer):
         self.evaluation_dataloaders = {k: v for k, v in dataloaders.items()}
 
         # path definition
-
         self.save_path = save_path
+
+        self.logger = logger
+        self.log_step = config.inferencer.get("log_step", 10)
 
         # define metrics
         self.metrics = metrics
@@ -134,16 +137,17 @@ class Inferencer(BaseTrainer):
             ):
                 if "test" not in part:
                     raise Exception(f"Evaluating part without 'test' prefics. part name is {part}")
-
-                batch = self.process_batch(
-                    batch_idx=batch_idx,
-                    batch=batch,
-                    part=part,
-                    metrics=self.evaluation_metrics,
-                )
-                # self._log_scalars(self.evaluation_metrics)
-                # if batch_idx % 100 == 0:
-                #     self._log_batch(batch_idx, batch, part)
+                try:
+                    batch = self.process_batch(
+                        batch_idx=batch_idx,
+                        batch=batch,
+                        part=part,
+                        metrics=self.evaluation_metrics,
+                    )
+                except torch.cuda.OutOfMemoryError as e:
+                    self.logger.warning("OOM on batch. Skipping batch.")
+                    torch.cuda.empty_cache()  # free some memory
+                    continue
 
         return self.evaluation_metrics.result()
 
@@ -192,6 +196,7 @@ class Inferencer(BaseTrainer):
             prediction_pathes[decode_method] = self.save_path / part / decode_method
             os.makedirs(prediction_pathes[decode_method], exist_ok=True)
 
+        self.logger.info(f"Saving examples: {self.save_path / part} ...")
 
         for i in range(len(batch['audio'])):
             if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:

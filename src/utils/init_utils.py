@@ -102,7 +102,7 @@ def resume_config(save_dir):
     return run_id
 
 
-def saving_init(save_dir, config):
+def train_saving_init(save_dir, config):
     """
     Initialize saving by getting run_id.
 
@@ -138,7 +138,7 @@ def saving_init(save_dir, config):
     log_git_commit_and_patch(save_dir)
 
 
-def setup_saving_and_logging(config):
+def setup_train_saving_and_logging(config):
     """
     Initialize the logger, writer, and saving directory.
     The saving directory is defined by the run_name and save_dir
@@ -150,13 +150,68 @@ def setup_saving_and_logging(config):
         logger (Logger): logger that logs output.
     """
     save_dir = ROOT_PATH / config.trainer.save_dir / config.writer.run_name
-    saving_init(save_dir, config)
+    train_saving_init(save_dir, config)
 
     if config.trainer.get("resume_from") is not None:
         setup_logging(save_dir, append=True)
     else:
         setup_logging(save_dir, append=False)
     logger = logging.getLogger("train")
+    logger.setLevel(logging.DEBUG)
+
+    return logger
+
+
+def inference_saving_init(save_dir, config):
+    """
+    Initialize saving by getting run_id.
+
+    Args:
+        save_dir (Path): path to the directory to log everything:
+            logs, checkpoints, config, etc.
+        config (DictConfig): hydra config for the current experiment.
+    """
+    run_id = None
+
+    if save_dir.exists():
+        if config.inferencer.override:
+            print(f"Overriding save directory '{save_dir}'...")
+            shutil.rmtree(str(save_dir))
+        elif not config.inferencer.override:
+            raise ValueError(
+                "Save directory exists. Change the name or set override=True"
+            )
+
+    save_dir.mkdir(exist_ok=True, parents=True)
+
+    if run_id is None:
+        run_id = generate_id(length=config.writer.id_length)
+
+    OmegaConf.set_struct(config, False)
+    config.writer.run_id = run_id
+    OmegaConf.set_struct(config, True)
+
+    OmegaConf.save(config, save_dir / "config.yaml")
+
+    log_git_commit_and_patch(save_dir)
+
+
+def setup_inference_saving_and_logging(config):
+    """
+    Initialize the logger, writer, and saving directory.
+    The saving directory is defined by the run_name and save_dir
+    arguments of config.writer and config.trainer, respectfully.
+
+    Args:
+        config (DictConfig): hydra config for the current experiment.
+    Returns:
+        logger (Logger): logger that logs output.
+    """
+    save_dir = ROOT_PATH / config.inferencer.save_dir / config.writer.run_name
+    inference_saving_init(save_dir, config)
+
+    setup_logging(save_dir, append=False)
+    logger = logging.getLogger("inferece")
     logger.setLevel(logging.DEBUG)
 
     return logger
