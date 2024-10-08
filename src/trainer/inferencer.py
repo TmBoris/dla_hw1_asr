@@ -3,8 +3,9 @@ import os
 import numpy as np
 from tqdm.auto import tqdm
 from scipy.io.wavfile import write
+from pathlib import Path
 
-
+from src.logger.utils import plot_spectrogram
 from src.metrics.tracker import MetricTracker
 from src.metrics.utils import calc_cer, calc_wer
 from src.trainer.base_trainer import BaseTrainer
@@ -27,6 +28,7 @@ class Inferencer(BaseTrainer):
         dataloaders,
         text_encoder,
         logger,
+        writer,
         save_path,
         metrics=None,
         batch_transforms=None,
@@ -77,7 +79,8 @@ class Inferencer(BaseTrainer):
 
         # path definition
         self.save_path = save_path
-
+        
+        self.writer = writer
         self.logger = logger
         self.log_step = config.inferencer.get("log_step", 10)
 
@@ -196,8 +199,6 @@ class Inferencer(BaseTrainer):
             prediction_pathes[decode_method] = self.save_path / part / decode_method
             os.makedirs(prediction_pathes[decode_method], exist_ok=True)
 
-        self.logger.info(f"Saving examples: {self.save_path / part} ...")
-
         for i in range(len(batch['audio'])):
             if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:
                 break
@@ -230,5 +231,59 @@ class Inferencer(BaseTrainer):
                 if not isinstance(decoded_text, str):
                     decoded_text = decoded_text[0]
                 saving_path.write_text(decoded_text, encoding='utf-8')
+        self.log_spectrogram(**batch)
+        self.log_predictions(**batch)
 
         return batch
+    
+    def log_spectrogram(self, spectrogram, **batch):
+        spectrogram_for_plot = spectrogram[0].detach().cpu()
+        image = plot_spectrogram(spectrogram_for_plot)
+        self.writer.add_image("spectrogram", image)
+
+    def log_predictions(
+        self, normalized_text, log_probs, log_probs_length, audio_path, examples_to_log=1, **batch
+    ):
+        lengths = log_probs_length.detach().numpy()
+        rows = {}
+        for i in range(examples_to_log):
+            log_prob = batch['log_probs'][i].detach().cpu()
+            log_prob_length = batch['log_probs_length'][i].detach().cpu().numpy()
+
+            decode_method_to_func = {
+                'argmax': self.text_encoder.argmax_ctc_decode,
+                'bs': self.text_encoder.ctc_beam_search,
+                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
+            }
+
+            input = {
+                'probs': log_prob[:log_prob_length, :],
+                'probs_lengths': np.array([log_prob_length])
+            }
+
+            target_text = normalized_text[i]
+
+            rows[Path(audio_path).name] = {
+                "target": target_text,
+                "audio": wandb.Audio(audio_path)
+            }
+
+            for decode_method in self.saver_decode_methods:
+                assert decode_method in list(decode_method_to_func.keys()), 'unknown decode method'
+
+                predicted_text = decode_method_to_func[decode_method](**input)
+                if not isinstance(predicted_text, str):
+                    predicted_text = predicted_text[0]
+                # saving_path.write_text(predicted_text, encoding='utf-8')
+
+                wer = calc_wer(target_text, predicted_text) * 100
+                cer = calc_cer(target_text, predicted_text) * 100
+
+
+                rows[Path(audio_path).name][f'{decode_method}_predictions'] = predicted_text
+                rows[Path(audio_path).name][f'{decode_method}_wer'] = wer
+                rows[Path(audio_path).name][f'{decode_method}_cer'] = cer
+
+        self.writer.add_table(
+            "predictions", pd.DataFrame.from_dict(rows, orient="index")
+        )
