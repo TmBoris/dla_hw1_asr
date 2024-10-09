@@ -100,7 +100,7 @@ class CTCTextEncoder:
                         new_prefix = prefix + cur_char
                     else:
                         new_prefix = prefix
-                new_dp[(new_prefix, cur_char)] += v * next_token_prob
+                new_dp[(new_prefix, cur_char)] += v + next_token_prob
         return new_dp
 
     def _truncate_paths(self, dp):
@@ -115,10 +115,9 @@ class CTCTextEncoder:
             dp = self._truncate_paths(dp)
         # хотим объединить вероятности одинаковых префиксов
         final_probs = defaultdict(float)
-        max_prob = 0
+        max_prob = -1e10
         best_prefics = ''
         for (prefix, _), proba in dp.items():
-            assert proba >= 0
             final_probs[prefix] += proba
             if final_probs[prefix] > max_prob:
                 max_prob = final_probs[prefix]
