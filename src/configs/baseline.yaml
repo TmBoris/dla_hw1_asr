@@ -28,7 +28,7 @@ trainer:
   n_epochs: 2
   epoch_len: 1
   device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
-  saver_decode_methods: ['argmax', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
+  saver_decode_methods: ['argmax', 'bs_lm'] # possible names are argmax, bs, bs_lm
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"
   override: True # if True, will override the previous run with the same name

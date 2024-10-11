@@ -107,7 +107,7 @@ class Trainer(BaseTrainer):
             decode_method_to_func = {
                 'argmax': self.text_encoder.argmax_ctc_decode,
                 'bs': self.text_encoder.ctc_beam_search,
-                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
+                'bs_lm': self.text_encoder.lib_lm_beam_search
             }
 
             input = {

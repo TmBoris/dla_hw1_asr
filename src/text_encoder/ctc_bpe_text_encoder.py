@@ -23,7 +23,7 @@ class CTCBPETextEncoder:
                 set to ascii
         """
 
-        tokenizer = Tokenizer.from_file("bpe_tokenizer.json")
+        tokenizer = Tokenizer.from_file("src/text_encoder/bpe_tokenizer.json")
         self.vocab = [self.EMPTY_TOK] + list(dict(sorted(tokenizer.get_vocab().items(), key=lambda x: x[1])).keys())
 
         self.ind2char = dict(enumerate(self.vocab))

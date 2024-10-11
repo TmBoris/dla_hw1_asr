@@ -7,16 +7,15 @@ defaults:
   - transforms: example # example, example_only_instance
   - _self_
 text_encoder:
-  _target_: src.text_encoder.CTCBPETextEncoder
+  _target_: src.text_encoder.CTCTextEncoder
   lm_path: data/LM/3-gram.pruned.1e-7.bin # 3-gram.pruned.1e-7 from https://www.openslr.org/11/
   vocab_path: data/LM/librispeech-vocab.txt # librispeech-vocab from https://www.openslr.org/11/
   beam_size: 3
 inferencer:
   device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
   device: auto # device name or "auto"
-  save_dir: "saved" # for wandb and outputs
-  max_logged_instances: 10
-  saver_decode_methods: ['argmax', 'bs', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
+  save_dir: 'saved' # for wandb and outputs
+  saver_decode_methods: ['bs_lm'] # possible names are argmax, bs, bs_lm
   seed: 1
   override: True
   from_pretrained: "saved/LS train-clean-100 baseline with checkpoint/model_best.pth" # path to the pretrained model

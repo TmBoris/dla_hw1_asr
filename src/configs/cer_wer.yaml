@@ -1,0 +1,2 @@
+target_path: saved/test/transcriptions
+predictions_path: saved/test/lib_bs_lm

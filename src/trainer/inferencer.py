@@ -131,8 +131,8 @@ class Inferencer(BaseTrainer):
         self.evaluation_metrics.reset()
 
         # create Save dir
-        if self.save_path is not None:
-            (self.save_path / part).mkdir(exist_ok=True, parents=True)
+        # if self.save_path is not None:
+        #     (self.save_path / part).mkdir(exist_ok=True, parents=True)
 
         with torch.no_grad():
             for batch_idx, batch in tqdm(
@@ -192,32 +192,20 @@ class Inferencer(BaseTrainer):
         # Some saving logic. This is an example
         # Use if you need to save predictions on disk
 
-        save_audio_path = self.save_path / part / 'audio'
-        os.makedirs(save_audio_path, exist_ok=True)
-        save_transcriptions_path = self.save_path / part / 'transcriptions'
-        os.makedirs(save_transcriptions_path, exist_ok=True)
         prediction_pathes = {}
         for decode_method in self.saver_decode_methods:
-            prediction_pathes[decode_method] = self.save_path / part / decode_method
+            prediction_pathes[decode_method] = self.save_path
             os.makedirs(prediction_pathes[decode_method], exist_ok=True)
 
         for i in range(len(batch['audio'])):
-            if (cur_len := len(os.listdir(save_audio_path))) > self.max_logged_instances:
-                break
 
             log_prob = batch['log_probs'][i].detach().cpu()
             log_prob_length = batch['log_probs_length'][i].detach().cpu().numpy()
 
-            # print("type of batch['audio'][i]", batch['audio'][i])
-            
-            write(save_audio_path / f'Utterance_{cur_len}.wav', 16000, batch['audio'][i].numpy()) # scipy
-            saving_transcr_path = save_transcriptions_path / f'Utterance_{cur_len}.txt'
-            saving_transcr_path.write_text(batch['text'][i], encoding="utf-8")
-
             decode_method_to_func = {
                 'argmax': self.text_encoder.argmax_ctc_decode,
                 'bs': self.text_encoder.ctc_beam_search,
-                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
+                'bs_lm': self.text_encoder.lib_lm_beam_search
             }
 
             input = {
@@ -225,6 +213,7 @@ class Inferencer(BaseTrainer):
                 'probs_lengths': np.array([log_prob_length])
             }
 
+            cur_len = len(os.listdir(list(prediction_pathes.values())[0]))
             for decode_method in self.saver_decode_methods:
                 assert decode_method in list(decode_method_to_func.keys()), 'unknown decode method'
 
@@ -261,7 +250,7 @@ class Inferencer(BaseTrainer):
             decode_method_to_func = {
                 'argmax': self.text_encoder.argmax_ctc_decode,
                 'bs': self.text_encoder.ctc_beam_search,
-                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
+                'bs_lm': self.text_encoder.lib_lm_beam_search
             }
 
             input = {

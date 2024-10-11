@@ -1,0 +1,4 @@
+test:
+  _target_: src.datasets.CustomDirDataset
+  dir: data/saved/testing_saving4/test
+  instance_transforms: ${transforms.instance_transforms.inference}

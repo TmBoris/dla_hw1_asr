@@ -212,10 +212,6 @@ class BaseTrainer:
         self.writer.set_step((epoch - 1) * self.epoch_len)
         self.writer.add_scalar("epoch", epoch)
 
-        specaug = nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(20),
-            torchaudio.transforms.TimeMasking(100),
-        )
         for batch_idx, batch in enumerate(
             tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
         ):

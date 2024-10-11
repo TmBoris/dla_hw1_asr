@@ -55,7 +55,7 @@ def main(config):
         )
 
     # save_path for model predictions
-    save_path = ROOT_PATH / config.inferencer.save_dir / config.writer.run_name
+    save_path = ROOT_PATH / config.inferencer.save_dir / config.writer.run_name / 'outputs'
     save_path.mkdir(exist_ok=True, parents=True)
 
     inferencer = Inferencer(
