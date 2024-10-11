@@ -80,24 +80,23 @@ class BaseDataset(Dataset):
         """
         data_dict = self._index[ind]
         audio_path = data_dict["path"]
-        audio = self.load_audio(audio_path)
+        raw_audio = self.load_audio(audio_path)
         text = data_dict["text"]
         text_encoded = self.text_encoder.encode(text)
 
-        spectrogram = self.get_spectrogram(audio)
+        raw_spectrogram = self.get_spectrogram(raw_audio)
+        augmeted_audio = self.preprocess_data(raw_audio)
+        spectrogram = self.get_spectrogram(augmeted_audio)
 
         instance_data = {
-            "audio": audio,
+            'raw_audio': raw_audio,
+            'raw_spectrogram': raw_spectrogram,
+            "audio": augmeted_audio,
             "spectrogram": spectrogram,
             "text": text,
             "text_encoded": text_encoded,
             "audio_path": audio_path,
         }
-
-        # TODO think of how to apply wave augs before calculating spectrogram
-        # Note: you may want to preserve both audio in time domain and
-        # in time-frequency domain for logging
-        instance_data = self.preprocess_data(instance_data)
 
         return instance_data
 
@@ -127,7 +126,7 @@ class BaseDataset(Dataset):
         """
         return torch.log(self.instance_transforms["get_spectrogram"](audio) + 1e-5)
 
-    def preprocess_data(self, instance_data):
+    def preprocess_data(self, audio):
         """
         Preprocess data with instance transforms.
 
@@ -142,13 +141,15 @@ class BaseDataset(Dataset):
                 instance transform).
         """
         if self.instance_transforms is not None:
+            new_audio = None
             for transform_name in self.instance_transforms.keys():
                 if transform_name == "get_spectrogram":
                     continue  # skip special key
-                instance_data[transform_name] = self.instance_transforms[
-                    transform_name
-                ](instance_data[transform_name])
-        return instance_data
+                if new_audio is None:
+                    new_audio = self.instance_transforms[transform_name](audio)
+                else:
+                    new_audio = self.instance_transforms[transform_name](new_audio)
+        return new_audio if new_audio is not None else audio
 
     @staticmethod
     def _filter_records_from_dataset(

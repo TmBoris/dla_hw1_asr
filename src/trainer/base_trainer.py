@@ -9,6 +9,8 @@ from tqdm.auto import tqdm
 from src.datasets.data_utils import inf_loop
 from src.metrics.tracker import MetricTracker
 from src.utils.io_utils import ROOT_PATH
+import torchaudio
+from torch import nn
 
 
 class BaseTrainer:
@@ -62,6 +64,7 @@ class BaseTrainer:
 
         self.config = config
         self.cfg_trainer = self.config.trainer
+        self.saver_decode_methods = self.cfg_trainer.get('saver_decode_methods', ['argmax'])
 
         self.device = device
         self.skip_oom = skip_oom
@@ -208,6 +211,11 @@ class BaseTrainer:
         self.train_metrics.reset()
         self.writer.set_step((epoch - 1) * self.epoch_len)
         self.writer.add_scalar("epoch", epoch)
+
+        specaug = nn.Sequential(
+            torchaudio.transforms.FrequencyMasking(20),
+            torchaudio.transforms.TimeMasking(100),
+        )
         for batch_idx, batch in enumerate(
             tqdm(self.train_dataloader, desc="train", total=self.epoch_len)
         ):

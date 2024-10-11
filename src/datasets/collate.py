@@ -43,4 +43,12 @@ def collate_fn(dataset_items: list[dict]):
     result_batch["normalized_text"] = [CTCTextEncoder.normalize_text(sample["text"]) for sample in dataset_items]
     result_batch["audio_path"] = [sample["audio_path"] for sample in dataset_items]
 
+    result_batch['raw_audio'] = pad_sequence(
+        [sample["raw_audio"].squeeze(0) for sample in dataset_items], batch_first=True
+    )
+    result_batch['raw_spectrogram'] = pad_sequence(
+        [sample['raw_spectrogram'].squeeze(0).permute(1, 0) for sample in dataset_items],
+        batch_first=True
+    ).permute(0, 2, 1)
+
     return result_batch

@@ -4,6 +4,6 @@
 #   instance_transforms: ${transforms.instance_transforms.inference}
 test:
   _target_: src.datasets.LibrispeechDataset
-  part: "dev-clean"
+  part: "test-other"
   limit: 2
   instance_transforms: ${transforms.instance_transforms.inference}

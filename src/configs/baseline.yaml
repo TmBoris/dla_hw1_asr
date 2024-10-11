@@ -19,7 +19,7 @@ lr_scheduler:
 loss_function:
   _target_: src.loss.CTCLossWrapper
 text_encoder:
-  _target_: src.text_encoder.CTCTextEncoder
+  _target_: src.text_encoder.CTCBPETextEncoder
   lm_path: data/LM/3-gram.pruned.1e-7.bin # 3-gram.pruned.1e-7 from https://www.openslr.org/11/
   vocab_path: data/LM/librispeech-vocab.txt # librispeech-vocab from https://www.openslr.org/11/
   beam_size: 10
@@ -28,6 +28,7 @@ trainer:
   n_epochs: 2
   epoch_len: 1
   device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
+  saver_decode_methods: ['argmax', 'lib_bs_lm'] # possible names are argmax, bs, lib_bs_lm
   resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
   device: auto # device name or "auto"
   override: True # if True, will override the previous run with the same name

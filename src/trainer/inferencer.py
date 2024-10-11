@@ -240,13 +240,17 @@ class Inferencer(BaseTrainer):
 
         return batch
     
-    def log_spectrogram(self, spectrogram, **batch):
+    def log_spectrogram(self, raw_spectrogram, spectrogram, **batch):
         spectrogram_for_plot = spectrogram[0].detach().cpu()
         image = plot_spectrogram(spectrogram_for_plot)
         self.writer.add_image("spectrogram", image)
 
+        spectrogram_for_plot = raw_spectrogram[0].detach().cpu()
+        image = plot_spectrogram(spectrogram_for_plot)
+        self.writer.add_image("raw_spectrogram", image)
+
     def log_predictions(
-        self, normalized_text, log_probs, log_probs_length, audio_path, examples_to_log=10, **batch
+        self, normalized_text, log_probs, log_probs_length, audio_path, audio, raw_audio, examples_to_log=10, **batch
     ):
         lengths = log_probs_length.detach().numpy()
         rows = {}
@@ -269,7 +273,8 @@ class Inferencer(BaseTrainer):
 
             rows[Path(audio_path[i]).name] = {
                 "target": target_text,
-                "audio": wandb.Audio(audio_path[i])
+                "raw_audio": wandb.Audio(raw_audio[i], sample_rate=16000),
+                "audio": wandb.Audio(audio[i], sample_rate=16000)
             }
 
             for decode_method in self.saver_decode_methods:

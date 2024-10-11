@@ -3,7 +3,7 @@ from string import ascii_lowercase
 from pyctcdecode import build_ctcdecoder
 import multiprocessing
 from collections import defaultdict
-
+from tokenizers import Tokenizer
 import torch
 
 # TODO add CTC decode
@@ -13,7 +13,7 @@ import torch
 # to calculate stuff more efficiently and prettier
 
 
-class CTCTextEncoder:
+class CTCBPETextEncoder:
     EMPTY_TOK = ""
 
     def __init__(self, lm_path, vocab_path, beam_size, alphabet=None, **kwargs):
@@ -23,11 +23,8 @@ class CTCTextEncoder:
                 set to ascii
         """
 
-        if alphabet is None:
-            alphabet = list(ascii_lowercase + " ")
-
-        self.alphabet = alphabet
-        self.vocab = [self.EMPTY_TOK] + list(self.alphabet)
+        tokenizer = Tokenizer.from_file("bpe_tokenizer.json")
+        self.vocab = [self.EMPTY_TOK] + list(dict(sorted(tokenizer.get_vocab().items(), key=lambda x: x[1])).keys())
 
         self.ind2char = dict(enumerate(self.vocab))
         self.char2ind = {v: k for k, v in self.ind2char.items()}

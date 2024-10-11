@@ -2,6 +2,7 @@ from pathlib import Path
 import wandb
 
 import pandas as pd
+import numpy as np
 
 from src.logger.utils import plot_spectrogram
 from src.metrics.tracker import MetricTracker
@@ -85,35 +86,58 @@ class Trainer(BaseTrainer):
             self.log_spectrogram(**batch)
             self.log_predictions(**batch)
 
-    def log_spectrogram(self, spectrogram, **batch):
+    def log_spectrogram(self, raw_spectrogram, spectrogram, **batch):
         spectrogram_for_plot = spectrogram[0].detach().cpu()
         image = plot_spectrogram(spectrogram_for_plot)
         self.writer.add_image("spectrogram", image)
 
+        spectrogram_for_plot = raw_spectrogram[0].detach().cpu()
+        image = plot_spectrogram(spectrogram_for_plot)
+        self.writer.add_image("raw_spectrogram", image)
+
     def log_predictions(
-        self, normalized_text, log_probs, log_probs_length, audio_path, examples_to_log=10, **batch
+        self, normalized_text, log_probs, log_probs_length, audio_path, audio, raw_audio, examples_to_log=10, **batch
     ):
-        # TODO add beam search
-        # Note: by improving text encoder and metrics design
-        # this logging can also be improved significantly
         lengths = log_probs_length.detach().numpy()
-        preds = [self.text_encoder.argmax_ctc_decode(log_prob[:length, :]) for log_prob, length in zip(log_probs, lengths)]
-
         rows = {}
-        for i, (pred, target, audio_path) in enumerate(zip(preds, normalized_text, audio_path)):
-            if i == examples_to_log:
-                break
+        for i in range(min(examples_to_log, len(normalized_text))):
+            log_prob = log_probs[i].detach().cpu()
+            log_prob_length = log_probs_length[i].detach().cpu().numpy()
 
-            wer = calc_wer(target, pred) * 100
-            cer = calc_cer(target, pred) * 100
-
-            rows[Path(audio_path).name] = {
-                "target": target,
-                "predictions": pred,
-                "wer": wer,
-                "cer": cer,
-                "audio": wandb.Audio(audio_path)
+            decode_method_to_func = {
+                'argmax': self.text_encoder.argmax_ctc_decode,
+                'bs': self.text_encoder.ctc_beam_search,
+                'lib_bs_lm': self.text_encoder.lib_lm_beam_search
             }
+
+            input = {
+                'probs': log_prob[:log_prob_length, :],
+                'probs_lengths': np.array([log_prob_length])
+            }
+
+            target_text = normalized_text[i]
+
+            rows[Path(audio_path[i]).name] = {
+                "target": target_text,
+                "raw_audio": wandb.Audio(raw_audio[i], sample_rate=16000),
+                "audio": wandb.Audio(audio[i], sample_rate=16000)
+            }
+
+            for decode_method in self.saver_decode_methods:
+                assert decode_method in list(decode_method_to_func.keys()), 'unknown decode method'
+
+                predicted_text = decode_method_to_func[decode_method](**input)
+                if not isinstance(predicted_text, str):
+                    predicted_text = predicted_text[0]
+                # saving_path.write_text(predicted_text, encoding='utf-8')
+
+                wer = calc_wer(target_text, predicted_text) * 100
+                cer = calc_cer(target_text, predicted_text) * 100
+
+
+                rows[Path(audio_path[i]).name][f'{decode_method}_predictions'] = predicted_text
+                rows[Path(audio_path[i]).name][f'{decode_method}_wer'] = wer
+                rows[Path(audio_path[i]).name][f'{decode_method}_cer'] = cer
 
         self.writer.add_table(
             "predictions", pd.DataFrame.from_dict(rows, orient="index")
