@@ -21,15 +21,16 @@ sh ./download_lm_prerequisites.sh
 sh ./download_best_model.sh
 ```
 
-## Train
+## Train model from scratch
 ```shell
 python train.py
 ```
 
-## Inference
+## Quick inference model on test examples and calculate metrics
 ```shell
 python inference.py
+python calculate_cer_wer.py
 ```
 
 ## Wandb report
-You can read my wandb [report]() (Russian only).
+You can read my wandb [report](https://wandb.ai/tmboris/pytorch_template_asr_example/reports/DLA-HW1-ASR--Vmlldzo5NjkxNDMz?accessToken=j2a3oiwv4f4e69qjwc5lffy9b09alg4a2olr1d9du4b4p0p5c6sq51n383nmd2d2) (Russian only).
