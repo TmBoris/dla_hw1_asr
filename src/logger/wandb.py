@@ -15,7 +15,6 @@ class WandBWriter:
         self,
         logger,
         project_config,
-        key,
         project_name,
         entity=None,
         run_id=None,
@@ -41,7 +40,7 @@ class WandBWriter:
         try:
             import wandb
 
-            wandb.login(key=key)
+            wandb.login()
 
             self.run_id = run_id
 

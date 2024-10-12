@@ -212,7 +212,6 @@ class Inferencer(BaseTrainer):
                 'probs': log_prob[:log_prob_length, :],
                 'probs_lengths': np.array([log_prob_length])
             }
-
             cur_len = batch['id'][i] if 'id' in batch else len(os.listdir(list(prediction_pathes.values())[0]))
             for decode_method in self.saver_decode_methods:
                 assert decode_method in list(decode_method_to_func.keys()), 'unknown decode method'
