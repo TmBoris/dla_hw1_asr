@@ -96,6 +96,7 @@ class BaseDataset(Dataset):
             "text": text,
             "text_encoded": text_encoded,
             "audio_path": audio_path,
+            "id": data_dict["id"] if "id" in data_dict else None
         }
 
         return instance_data

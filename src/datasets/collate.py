@@ -50,8 +50,8 @@ def collate_fn(dataset_items: list[dict]):
         [sample['raw_spectrogram'].squeeze(0).permute(1, 0) for sample in dataset_items],
         batch_first=True
     ).permute(0, 2, 1)
-
-    if 'id' in dataset_items[0]:
+    
+    if dataset_items[0]['id'] is not None:
         result_batch["id"] = [sample["id"] for sample in dataset_items]
 
     return result_batch

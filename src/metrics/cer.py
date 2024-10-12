@@ -45,9 +45,4 @@ class BsLmCERMetric(BaseMetric):
         lengths = log_probs_length.detach().cpu().numpy()
         pred_texts = self.text_encoder.lib_lm_beam_search(predictions, lengths)
         cers = [calc_cer(target_text, pred_text) for target_text, pred_text in zip (normalized_text, pred_texts)]
-        print('during cer inference info')
-        print('\t cers', cers)
-        print('\t pred_texts', pred_texts)
-        print('\t target_texts', normalized_text)
-
         return sum(cers) / len(cers)

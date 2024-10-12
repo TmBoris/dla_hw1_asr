@@ -17,17 +17,11 @@ def main(config):
         with open(Path(predictions_path) / f'Utterance_{i}.txt', 'r') as f:
             predicted_text = f.read().strip()
 
-        print('predicted_text', predicted_text)
-        print('target_text', target_text)
-
-        wer = calc_wer(target_text, predicted_text)
-        cer = calc_cer(target_text, predicted_text)
+        wer = calc_wer(target_text, predicted_text) * 100
+        cer = calc_cer(target_text, predicted_text) * 100
 
         wers.append(wer)
         cers.append(cer)
-
-    print(wers)
-    print(cers)
 
     print('Total WER:', sum(wers) / len(wers))
     print('Total CER:', sum(cers) / len(cers))

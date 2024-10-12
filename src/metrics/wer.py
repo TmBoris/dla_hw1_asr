@@ -45,9 +45,4 @@ class BsLmWERMetric(BaseMetric):
         lengths = log_probs_length.detach().cpu().numpy()
         pred_texts = self.text_encoder.lib_lm_beam_search(predictions, lengths)
         wers = [calc_wer(target_text, pred_text) for target_text, pred_text in zip (normalized_text, pred_texts)]
-        print('during wer inference info')
-        print('\t wers', wers)
-        print('\t pred_texts', pred_texts)
-        print('\t target_texts', normalized_text)
-
         return sum(wers) / len(wers)
